@@ -1,0 +1,11 @@
+# Teacher environment for distill/make_teacher_data.py (separate from Neodragon's, which pins diffusers 0.34)
+torch>=2.4
+diffusers>=0.35
+transformers>=4.49
+accelerate
+sentencepiece
+ftfy
+imageio
+imageio-ffmpeg
+av
+safetensors

@@ -93,3 +93,77 @@ Machine: AMD EPYC Zen 4, 17 usable cores, AVX-512 + VNNI, no AVX512_BF16/AMX, no
 - `scripts/eval_rife.py` (RIFE hold-out PSNR + timing).
 - `notebooks/neodragon_x_free_gpu.ipynb` (Kaggle/Colab T4, **not executed** by us).
 - Scripts insert the repo root in `sys.path`, so `python scripts/...` works from a clone.
+
+## 2026-10-06 — session 2 (phase 2: faster first frame, RIFE fast path, upscaler, distillation pipeline)
+
+### RIFE fast path (ROADMAP #12) — `results/rife_fastpath.json`
+- IFNet's first convs of each block take 4/45/90 input channels. Zero-padding the weights and
+  activations to 48/96 channels (extra channels are exactly 0, so the math is unchanged) lets
+  every IFNet conv run on oneDNN's correct, fast kernel again. No conv is bypassed any more.
+- RIFE 2× on 49 frames: **11.31 s → 5.05 s (2.24×)**. Max float difference vs the native-kernel
+  path 8.4e-6 for one frame pair; after uint8 conversion 0.0005 % of pixels differ by 1 level.
+  **Kept as the default** (it is lossless). `scripts/bench_rife_fastpath.py`.
+
+### oneDNN rule, refined — `results/onednn_conv_check.json`
+- A wider sweep of input-channel counts shows the bug is **in_ch > 16 and not a multiple of 16**
+  (1–16 are fine, 17/45/90… are wrong, 32/48/96… are fine). `scripts/check_onednn_conv.py`
+  prints the predicted vs measured result per channel count.
+
+### First frame with fewer SSD-1B steps (ROADMAP #3) — `results/first_frame_steps.json`
+- 6 prompts, TAESDXL decode, seconds per image / CLIP-score of the image:
+
+  | variant | s / image | CLIP |
+  |---|---|---|
+  | 4 steps, 1024×640 (upstream) | 10.41 | 33.58 |
+  | 4 steps, channels_last | 11.87 | 33.84 |
+  | 4 steps, 768×480 | 6.11 | 32.01 |
+  | 3 steps [999,666,333], 1024 | 7.77 | 33.64 |
+  | **2 steps [999,499], 1024** | **5.48** | **33.44** |
+  | 3 steps, 768 | 4.72 | 32.66 |
+  | 2 steps, 768 | 3.34 | 31.28 |
+
+- 2 steps at 1024 keeps the timesteps on the distilled grid (3 steps is off-grid and diffusers
+  warns), halves the time and keeps the CLIP-score. Lower resolution costs more quality than fewer
+  steps. channels_last is slower on this CPU → rejected.
+- New `--first_frame_steps {2,3,4}`; `--fast` now implies `--first_frame_steps 2`.
+- End-to-end, clean machine, 3 prompts (`results/cpu_benchmark_phase2.json`):
+  old `--fast` (tiny VAE + INT8) **28.81 s, CLIP 31.38** → new `--fast` (+ 2-step first frame)
+  **23.2 s, CLIP 32.28**. First frame 9.6–10.4 s → 5.2–6.7 s. vs the upstream pipeline
+  (42.8 s same session, 50.5 s in session 1) that is **1.85–2.2× faster**.
+
+### Real-ESRGAN upscaler (ROADMAP #5) — `results/upscale_eval.json`
+- Opt-in `--upscale {2,4}` with `--upscale_model {general,fast}` (realesr-general-x4v3 and
+  realesr-animevideov3, both BSD-3), applied after RIFE. 512×320 → 1024×640.
+
+  | model | hold-out PSNR | sharpness (GT 7.67) | ms / frame | flicker ratio |
+  |---|---|---|---|---|
+  | bicubic | 34.68 dB | 4.00 | 10 | 1.0 |
+  | general | 30.11 dB | 7.58 | 565 | 1.09 |
+  | fast | 31.73 dB | 5.86 | 307 | 1.05 |
+
+- Lower PSNR than bicubic is normal for GAN super-resolution: it restores sharpness to the level
+  of the real frames instead of averaging. Visibly sharper fur/texture
+  (`results/shots/upscale_bicubic_vs_*.jpg`). Cost for 49 frames: ~28 s (general) / ~15 s (fast).
+  Both models checked against float64 (max error ≤ 7e-5) because of the oneDNN bug.
+
+### torch.compile (ROADMAP #2) — `results/compile_eval.json`
+- First run failed: inductor could not find `Python.h` (uv's Python keeps headers outside
+  `/usr/include`). Fix: `export CPATH=<uv python>/include/python3.11`.
+- Second run (same session, 17 threads): eager best **26.17 s**; `compile_dit` best **26.68 s**
+  (no gain, +2%), PSNR vs eager 83.9 dB (identical output), but the **first call took 964 s**.
+  The DiT recompiles once per latent unit because the history length changes, and dynamo hits
+  `cache_size_limit=8`, then falls back to eager. `compile_dit_vae` not run.
+- **Rejected**: no `--compile` flag. Static shapes per (stage, unit) via OpenVINO (#1) remain the
+  better path for graph-level speedups.
+
+### Distillation from Wan2.2 — `docs/DISTILLATION.md`, `results/distill_smoke.json`
+- Pipeline written: teacher data with Wan2.2-TI2V-5B (separate venv, diffusers ≥ 0.35) and
+  encoding into Neodragon's latent space. Both steps smoke-tested on CPU.
+- Teacher speed on CPU (fp32, 17 threads): 320×512×17 f×4 steps = 141.9 s; 480×768×25 f at
+  **42.4 s/step** (run stopped at step 23/30 when distillation was paused). Estimate for
+  480×768×49 f×40 steps: ~1 h per clip, so CPU teacher data is a dead end.
+- Stage A trainer (`distill/train_stage_a.py`) written and smoke-tested on CPU: val_loss
+  0.10539 (original) → 0.10528 after 3 steps, `--resume auto` works, 14.06 M LoRA params (56 MB).
+  `neodragon/lora.py` merge is exact (max error 0.0); `--lora` works end to end in the CLI.
+- Real training needs a GPU and was not run; Stage B is design only. **Paused by the owner on
+  2026-10-06.** Restart point: `notebooks/neodragon_x_distill_kaggle.ipynb`.

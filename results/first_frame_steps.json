@@ -1,0 +1,212 @@
+{
+  "threads": 17,
+  "torch": "2.5.1+cu124",
+  "seed": 42,
+  "prompts": [
+    "A red fox running through fresh snow in a pine forest at sunrise",
+    "Waves crashing on black volcanic rocks, slow motion, golden hour",
+    "A busy night market street in an old city, lanterns glowing, people walking",
+    "An astronaut riding a horse on the moon, earth in the sky",
+    "A cup of coffee on a wooden table, steam rising, morning light",
+    "A drone shot over a desert canyon with a river, sunset"
+  ],
+  "variants": {
+    "base_4step_1024": {
+      "steps": [
+        999,
+        749,
+        499,
+        249
+      ],
+      "h": 640,
+      "w": 1024,
+      "cl": false,
+      "mean_s": 10.41,
+      "mean_clip": 33.58,
+      "clip_per_prompt": [
+        33.35,
+        34.1,
+        30.79,
+        36.1,
+        34.96,
+        32.2
+      ],
+      "s_per_prompt": [
+        10.33,
+        10.19,
+        10.8,
+        10.75,
+        10.24,
+        10.15
+      ]
+    },
+    "cl_4step_1024": {
+      "steps": [
+        999,
+        749,
+        499,
+        249
+      ],
+      "h": 640,
+      "w": 1024,
+      "cl": true,
+      "mean_s": 11.87,
+      "mean_clip": 33.84,
+      "clip_per_prompt": [
+        33.18,
+        34.37,
+        30.82,
+        36.07,
+        35.07,
+        33.52
+      ],
+      "s_per_prompt": [
+        11.99,
+        11.82,
+        11.87,
+        11.82,
+        11.94,
+        11.76
+      ]
+    },
+    "4step_768": {
+      "steps": [
+        999,
+        749,
+        499,
+        249
+      ],
+      "h": 480,
+      "w": 768,
+      "cl": false,
+      "mean_s": 6.11,
+      "mean_clip": 32.01,
+      "clip_per_prompt": [
+        30.28,
+        32.78,
+        30.11,
+        34.19,
+        34.96,
+        29.72
+      ],
+      "s_per_prompt": [
+        6.13,
+        6.19,
+        6.14,
+        6.08,
+        6.06,
+        6.04
+      ]
+    },
+    "3step_1024": {
+      "steps": [
+        999,
+        666,
+        333
+      ],
+      "h": 640,
+      "w": 1024,
+      "cl": false,
+      "mean_s": 7.77,
+      "mean_clip": 33.64,
+      "clip_per_prompt": [
+        32.5,
+        34.83,
+        31.62,
+        33.83,
+        34.12,
+        34.94
+      ],
+      "s_per_prompt": [
+        7.81,
+        7.83,
+        7.76,
+        7.69,
+        7.75,
+        7.76
+      ]
+    },
+    "2step_1024": {
+      "steps": [
+        999,
+        499
+      ],
+      "h": 640,
+      "w": 1024,
+      "cl": false,
+      "mean_s": 5.48,
+      "mean_clip": 33.44,
+      "clip_per_prompt": [
+        31.08,
+        36.54,
+        32.17,
+        34.69,
+        33.06,
+        33.11
+      ],
+      "s_per_prompt": [
+        5.46,
+        5.45,
+        5.52,
+        5.5,
+        5.49,
+        5.44
+      ]
+    },
+    "3step_768": {
+      "steps": [
+        999,
+        666,
+        333
+      ],
+      "h": 480,
+      "w": 768,
+      "cl": false,
+      "mean_s": 4.72,
+      "mean_clip": 32.66,
+      "clip_per_prompt": [
+        29.47,
+        32.58,
+        31.27,
+        36.31,
+        34.6,
+        31.72
+      ],
+      "s_per_prompt": [
+        4.74,
+        4.7,
+        4.72,
+        4.68,
+        4.68,
+        4.79
+      ]
+    },
+    "2step_768": {
+      "steps": [
+        999,
+        499
+      ],
+      "h": 480,
+      "w": 768,
+      "cl": false,
+      "mean_s": 3.34,
+      "mean_clip": 31.28,
+      "clip_per_prompt": [
+        30.34,
+        32.45,
+        31.94,
+        28.25,
+        32.69,
+        32.02
+      ],
+      "s_per_prompt": [
+        3.32,
+        3.31,
+        3.34,
+        3.36,
+        3.37,
+        3.32
+      ]
+    }
+  }
+}

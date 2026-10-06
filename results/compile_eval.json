@@ -1,0 +1,15 @@
+{
+  "what": "torch.compile (inductor, CPU) on the 320p image-to-video pipeline, 17 threads Zen 4, torch 2.5.1",
+  "run_2_with_python_headers": {
+    "eager": {"first_call_s": 27.1, "best_s": 26.17, "times_s": [26.17, 26.56]},
+    "compile_dit": {"first_call_s": 963.69, "best_s": 26.68, "times_s": [26.89, 26.68], "psnr_vs_eager_db": 83.86,
+                    "note": "recompiles once per latent unit (history length changes); hits dynamo cache_size_limit=8 and falls back to eager"},
+    "compile_dit_vae": {"status": "not run", "reason": "compile_dit already showed no steady-state gain and a 16-minute warm-up; impractical for a one-shot CLI"}
+  },
+  "run_1": {
+    "eager": {"best_s": 30.13},
+    "int8": {"best_s": 20.01, "psnr_vs_eager_db": 15.9, "note": "lossy; stays opt-in"},
+    "compile_variants": "failed: Python.h missing (fixed in run 2 by setting CPATH to the interpreter include dir)"
+  },
+  "verdict": "REJECTED - no speedup (+2% slower steady state), ~16 min first call. No --compile flag added."
+}

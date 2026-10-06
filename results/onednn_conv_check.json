@@ -1,5 +1,146 @@
 {
   "torch": "2.5.1+cu124",
+  "sweep": [
+    {
+      "in_ch": 1,
+      "worst_err": 5e-07,
+      "ok": true,
+      "predicted_bad": false
+    },
+    {
+      "in_ch": 3,
+      "worst_err": 7e-07,
+      "ok": true,
+      "predicted_bad": false
+    },
+    {
+      "in_ch": 4,
+      "worst_err": 8e-07,
+      "ok": true,
+      "predicted_bad": false
+    },
+    {
+      "in_ch": 8,
+      "worst_err": 1e-06,
+      "ok": true,
+      "predicted_bad": false
+    },
+    {
+      "in_ch": 11,
+      "worst_err": 1.6e-06,
+      "ok": true,
+      "predicted_bad": false
+    },
+    {
+      "in_ch": 14,
+      "worst_err": 1.2e-06,
+      "ok": true,
+      "predicted_bad": false
+    },
+    {
+      "in_ch": 16,
+      "worst_err": 1.3e-06,
+      "ok": true,
+      "predicted_bad": false
+    },
+    {
+      "in_ch": 17,
+      "worst_err": null,
+      "ok": false,
+      "predicted_bad": true
+    },
+    {
+      "in_ch": 20,
+      "worst_err": 1.1196655,
+      "ok": false,
+      "predicted_bad": true
+    },
+    {
+      "in_ch": 24,
+      "worst_err": null,
+      "ok": false,
+      "predicted_bad": true
+    },
+    {
+      "in_ch": 30,
+      "worst_err": 0.8340566,
+      "ok": false,
+      "predicted_bad": true
+    },
+    {
+      "in_ch": 32,
+      "worst_err": 1.3e-06,
+      "ok": true,
+      "predicted_bad": false
+    },
+    {
+      "in_ch": 40,
+      "worst_err": null,
+      "ok": false,
+      "predicted_bad": true
+    },
+    {
+      "in_ch": 45,
+      "worst_err": null,
+      "ok": false,
+      "predicted_bad": true
+    },
+    {
+      "in_ch": 48,
+      "worst_err": 9e-07,
+      "ok": true,
+      "predicted_bad": false
+    },
+    {
+      "in_ch": 50,
+      "worst_err": 0.5640125,
+      "ok": false,
+      "predicted_bad": true
+    },
+    {
+      "in_ch": 60,
+      "worst_err": null,
+      "ok": false,
+      "predicted_bad": true
+    },
+    {
+      "in_ch": 64,
+      "worst_err": 9e-07,
+      "ok": true,
+      "predicted_bad": false
+    },
+    {
+      "in_ch": 80,
+      "worst_err": 1e-06,
+      "ok": true,
+      "predicted_bad": false
+    },
+    {
+      "in_ch": 90,
+      "worst_err": 0.6215385,
+      "ok": false,
+      "predicted_bad": true
+    },
+    {
+      "in_ch": 96,
+      "worst_err": 9e-07,
+      "ok": true,
+      "predicted_bad": false
+    },
+    {
+      "in_ch": 100,
+      "worst_err": null,
+      "ok": false,
+      "predicted_bad": true
+    },
+    {
+      "in_ch": 112,
+      "worst_err": 8e-07,
+      "ok": true,
+      "predicted_bad": false
+    }
+  ],
+  "rule_in_ch_gt16_not_mult16_is_bad_holds": true,
   "machine": "x86_64",
   "onednn": true,
   "rows": [

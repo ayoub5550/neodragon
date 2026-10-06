@@ -1,0 +1,20 @@
+{
+  "video": "baseline-p0.mp4",
+  "threads": 17,
+  "frames_in": 49,
+  "frames_out": 97,
+  "torch": "2.5.1+cu124",
+  "native": {
+    "seconds_2x": 11.31,
+    "bypassed_convs": 52
+  },
+  "padded": {
+    "seconds_2x": 5.05,
+    "bypassed_convs": 0,
+    "padded_blocks": 4
+  },
+  "speedup": 2.24,
+  "max_float_diff_one_pair": 8.404254913330078e-06,
+  "uint8_frames_max_abs_diff": 1,
+  "uint8_pixels_differing_pct": 0.0005
+}

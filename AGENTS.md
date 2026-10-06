@@ -56,22 +56,39 @@ ignore_patterns=["*multistep*", "*.fp16.safetensors", "assets/*"])`.
    following the prompt), so `quantize_int8()` defaults to `("dit", "text")` only.
 6. RIFE needs H and W padded to multiples of 32 (handled in `neodragon/postprocess/rife.py`).
 7. NNPACK warning "Unsupported hardware" on AMD CPUs is harmless.
-8. **oneDNN conv bug** (torch 2.5.1 / oneDNN 3.5.3, AMD Zen 4): Conv2d with channel counts not
-   divisible by 16 (e.g. 45, 90) returns wrong values or NaN. Run `scripts/check_onednn_conv.py`
+8. **oneDNN conv bug** (torch 2.5.1 / oneDNN 3.5.3, AMD Zen 4): Conv2d with **in_ch > 16 and not a
+   multiple of 16** (e.g. 17, 45, 90) returns wrong values or NaN; 1–16 and multiples of 16 are exact.
+   Workaround that keeps the fast kernel: zero-pad channels to the next multiple of 16 (RIFE does this). Run `scripts/check_onednn_conv.py`
    on a new machine/torch version. Any new conv model you add (upscaler, etc.) must be checked
    against a float64 reference; RIFE already uses the guard in `neodragon/postprocess/rife.py`.
+9. **Wan2.2 needs its own venv** (diffusers ≥ 0.35, newer torch); Neodragon is pinned to
+   diffusers 0.34 / torch 2.5.1. Never install `distill/requirements-wan.txt` into the main venv.
+10. **torch.compile on CPU** needs a C++ compiler *and* the Python headers (`Python.h`). A system
+    Python without `python3-dev` fails with `CppCompileError`; install the dev package or point
+    `CPATH` at a uv-managed CPython's `include/python3.11`.
+11. Don't benchmark while anything else uses the CPU (downloads, other jobs): timings drift 20–40 %.
 
 ## 4. Map of the code
 
 ```
 neodragon/runtime.py            device / dtype / threads / autocast / seeds / INT8 helpers   (new)
-neodragon/postprocess/          RIFE v4 frame interpolation (MIT, vendored IFNet)          (new)
+neodragon/postprocess/rife.py   RIFE v4 frame interpolation (MIT, vendored IFNet, padded fast path) (new)
+neodragon/postprocess/upscale.py Real-ESRGAN compact upscaler (BSD-3, opt-in --upscale)      (new)
 neodragon/utils/generation_utils.py   sampling loop; exact block noise, seeds, image-to-video
 neodragon/__init__.py           NeodragonPipeline (+ enable_tiny_first_frame_vae, quantize_int8)
 scripts/inference_neodragon.py  CLI (--prompt --image --seed --fast --int8 --interpolate ...)
-scripts/benchmark_cpu.py        speed + CLIP-score + PSNR benchmark -> results/cpu_benchmark.json
+scripts/benchmark_cpu.py        speed + CLIP-score + PSNR benchmark -> results/cpu_benchmark*.json
+                                (config names: baseline, tiny_vae, int8, +ff2/+ff3 = first-frame steps)
+scripts/bench_first_frame.py    SSD-1B steps / resolution sweep -> results/first_frame_steps.json
+scripts/bench_rife_fastpath.py  padded vs native RIFE -> results/rife_fastpath.json
+scripts/bench_upscale.py        upscaler PSNR / sharpness / flicker / speed -> results/upscale_eval.json
+scripts/bench_compile.py        torch.compile variants -> results/compile_eval.json
+scripts/check_onednn_conv.py    oneDNN conv correctness sweep -> results/onednn_conv_check.json
+distill/                        Wan2.2 teacher data, encoding, Stage A LoRA trainer (docs/DISTILLATION.md)
+neodragon/lora.py               LoRA inject/save/load/merge (used by train_stage_a.py and --lora)
 notebooks/neodragon_x_free_gpu.ipynb   run on a free Kaggle/Colab T4
-docs/                           NEODRAGON_X.md, RESEARCH.md, DEVLOG.md, ROADMAP.md
+notebooks/neodragon_x_distill_kaggle.ipynb   free distillation run (Kaggle 2xT4, resumable)
+docs/                           NEODRAGON_X.md, RESEARCH.md, DEVLOG.md, ROADMAP.md, DISTILLATION.md
 results/                        measured JSON + frame strips (results/shots/)
 ```
 
