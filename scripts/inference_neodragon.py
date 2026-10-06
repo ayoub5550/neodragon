@@ -6,6 +6,7 @@
 
 import argparse
 import os
+import sys
 from concurrent import futures
 from pathlib import Path
 from typing import Tuple
@@ -15,7 +16,17 @@ from diffusers.utils import export_to_video
 from torch.utils.data import DataLoader, Dataset, DistributedSampler
 from tqdm.auto import tqdm
 
+# allow `python scripts/inference_neodragon.py` from a clone without `pip install .`
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from neodragon import PIPELINE_MODES, NeodragonPipeline
+from neodragon.runtime import (
+    auto_device,
+    auto_dtype,
+    autocast_context,
+    configure_cpu_threads,
+    make_generator,
+)
 from neodragon.safety_checker import (
     check_generated_video_safety,
     load_stable_diffusion_safety_checker,
@@ -37,6 +48,7 @@ class _PromptsDataset(Dataset):
         prompts_file: str,
         num_samples: int = 5,
         max_num_prompts: int = -1,  # used for debugging
+        prompts: list = None,
     ) -> None:
         super().__init__()
 
@@ -44,10 +56,13 @@ class _PromptsDataset(Dataset):
         self.num_samples = num_samples
         self.max_num_prompts = max_num_prompts
 
-        # Read the prompts file:
-        with open(self.prompts_file, "r") as file:
-            lines = file.readlines()
-        self.all_prompts = [line.strip() for line in lines]
+        if prompts:
+            self.all_prompts = list(prompts)
+        else:
+            # Read the prompts file:
+            with open(self.prompts_file, "r") as file:
+                lines = file.readlines()
+            self.all_prompts = [line.strip() for line in lines if line.strip()]
 
         # filtering based on max_num_prompts:
         if self.max_num_prompts > 0:
@@ -68,11 +83,14 @@ def _build_data_loader(
     max_num_prompts: int,
     world_size: int = 1,
     rank: int = 0,
+    prompts: list = None,
+    use_cuda: bool = True,
 ) -> torch.utils.data.DataLoader:
     dataset = _PromptsDataset(
         prompts_file=prompts_file,
         num_samples=num_samples,
         max_num_prompts=max_num_prompts,
+        prompts=prompts,
     )
     sampler = DistributedSampler(
         dataset,
@@ -84,12 +102,14 @@ def _build_data_loader(
     prompts_dataloader = DataLoader(
         dataset,
         batch_size=1,  # one prompt per GPU
-        num_workers=6,  # number of worker processes for data loading
-        pin_memory=True,
+        # Prompts are tiny strings: worker processes only cost start-up time (and pinned
+        # memory needs CUDA), so they are only used on GPU runs.
+        num_workers=6 if use_cuda else 0,
+        pin_memory=use_cuda,
         sampler=sampler,
         shuffle=False,
         drop_last=False,
-        prefetch_factor=2,
+        prefetch_factor=2 if use_cuda else None,
     )
 
     return prompts_dataloader
@@ -100,10 +120,40 @@ def get_args():
 
     parser.add_argument(
         "--model_dtype",
-        default="bf16",
+        default="auto",
         type=str,
-        help="The Model Dtype: bf16 or fp16 or fp32. bf16 is default for fast inference",
+        help="auto | bf16 | fp16 | fp32. auto = bf16 on CUDA, fp16 on MPS, and on CPU bf16 only "
+        "if the CPU has native bf16 (AVX512_BF16/AMX), otherwise fp32",
     )
+    # ---------------- Neodragon-X options ---------------- #
+    parser.add_argument("--device", default="auto", type=str,
+                        help="auto | cuda | mps | cpu (auto picks the best available)")
+    parser.add_argument("--prompt", type=str, action="append", default=None,
+                        help="A prompt to generate (repeatable). Overrides --prompts_file")
+    parser.add_argument("--image", type=str, default=None,
+                        help="Image-to-video: animate this picture (used as the first frame; "
+                        "skips the SSD-1B first-frame generator)")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="Random seed for reproducible videos (sample i uses seed + i)")
+    parser.add_argument("--threads", type=int, default=None,
+                        help="CPU threads (default: all CPUs this process may use, which is "
+                        "often more than `nproc` reports inside containers)")
+    parser.add_argument("--tiny_first_frame_vae", action="store_true",
+                        help="Decode the SSD-1B first frame with TAESDXL (7x faster decode)")
+    parser.add_argument("--int8", action="store_true",
+                        help="CPU only: dynamic INT8 for the Linear layers of the DiT and text "
+                        "encoder (adaLN/IO kept fp32). ~1.8x faster DiT, CLIP-score unchanged")
+    parser.add_argument("--fast", action="store_true",
+                        help="Shortcut: --tiny_first_frame_vae, plus --int8 on CPU")
+    parser.add_argument("--interpolate", type=int, default=1, choices=[1, 2, 4],
+                        help="RIFE frame interpolation factor: 2 turns 49 frames into 97")
+    parser.add_argument("--slow_motion", action="store_true",
+                        help="With --interpolate: keep the fps (longer, slow-motion clip) instead "
+                        "of multiplying it (same length, smoother)")
+    parser.add_argument("--first_frame_height", type=int, default=None,
+                        help="SSD-1B first-frame height (default 640)")
+    parser.add_argument("--first_frame_width", type=int, default=None,
+                        help="SSD-1B first-frame width (default 1024)")
     # fmt: off
     parser.add_argument(
         "--mode",
@@ -203,8 +253,21 @@ def main(args: argparse.Namespace) -> None:
         rank = 0
         local_gpu = 0
 
-    device = torch.device(f"cuda:{local_gpu}" if torch.cuda.is_available() else "cpu")
-    torch_dtype = get_torch_dtype(args.model_dtype)
+    device = auto_device(args.device)
+    if device.type == "cuda":
+        device = torch.device(f"cuda:{local_gpu}")
+    if device.type == "cpu":
+        n_threads = configure_cpu_threads(args.threads)
+        print(f"[neodragon-x] CPU mode with {n_threads} threads")
+    torch_dtype = auto_dtype(device, args.model_dtype)
+    print(f"[neodragon-x] device={device} dtype={torch_dtype}")
+
+    if args.fast:
+        args.tiny_first_frame_vae = True
+        args.int8 = args.int8 or device.type == "cpu"
+    if args.int8 and device.type != "cpu":
+        print("[neodragon-x] --int8 is a CPU path; ignored on", device)
+        args.int8 = False
 
     # Load the pipeline
     neodragon_pipeline = NeodragonPipeline.from_pretrained(
@@ -213,7 +276,25 @@ def main(args: argparse.Namespace) -> None:
         mode=args.mode,
         cache_dir=args.local_cache_folder,
     ).to(device)
+    if args.tiny_first_frame_vae:
+        neodragon_pipeline.enable_tiny_first_frame_vae(cache_dir=args.local_cache_folder)
+    if args.int8:
+        neodragon_pipeline.quantize_int8()
     print(f"Loaded Neodragon Pipeline in {args.mode} mode.")
+
+    interpolator = None
+    if args.interpolate > 1:
+        from neodragon.postprocess import RIFEInterpolator
+
+        interpolator = RIFEInterpolator(device=device, cache_dir=args.local_cache_folder)
+    out_fps = args.fps if (args.interpolate == 1 or args.slow_motion) else args.fps * args.interpolate
+
+    init_image = None
+    if args.image is not None:
+        from PIL import Image as _PILImage
+
+        init_image = _PILImage.open(args.image).convert("RGB")
+        print(f"[neodragon-x] image-to-video from {args.image}")
 
     # Load the safety checker:
     safety_checker, safety_feature_extractor = None, None
@@ -233,6 +314,8 @@ def main(args: argparse.Namespace) -> None:
         max_num_prompts=args.max_num_prompts,
         world_size=world_size,
         rank=rank,
+        prompts=args.prompt,
+        use_cuda=device.type == "cuda",
     )
 
     if is_dist_avail_and_initialized():
@@ -251,12 +334,10 @@ def main(args: argparse.Namespace) -> None:
         for datum in tqdm(dataloader):
             prompt, num_samples = datum[0][0], datum[1].item()
 
-            with (
-                torch.no_grad(),
-                torch.cuda.amp.autocast(enabled=True, dtype=torch_dtype),
-            ):
+            with torch.no_grad(), autocast_context(device, torch_dtype):
                 for sample_id in range(num_samples):
-                    output_video_path = Path(args.output_video_folder) / f"{prompt}-{sample_id}.mp4"
+                    safe_name = "".join(c if c.isalnum() or c in " -_," else "_" for c in prompt)[:150]
+                    output_video_path = Path(args.output_video_folder) / f"{safe_name}-{sample_id}.mp4"
 
                     if output_video_path.exists() and output_video_path.stat().st_size > 0:
                         continue
@@ -269,6 +350,18 @@ def main(args: argparse.Namespace) -> None:
                         num_frames=args.num_frames,
                         prompt_modifier=prompt_modifier,
                         profile=args.profile,
+                        image=init_image,
+                        generator=make_generator(
+                            None if args.seed is None else args.seed + sample_id
+                        ),
+                        **(
+                            {
+                                "first_frame_height": args.first_frame_height,
+                                "first_frame_width": args.first_frame_width,
+                            }
+                            if args.first_frame_height and args.first_frame_width
+                            else {}
+                        ),
                     )
 
                     # Safety check the generated video:
@@ -289,13 +382,16 @@ def main(args: argparse.Namespace) -> None:
                             )
                             raise RuntimeError(message)
 
+                    if interpolator is not None:
+                        generated_video = interpolator(generated_video, factor=args.interpolate)
+
                     # If video passes safety check submit it for exporting
                     task_queue.append(
                         executor.submit(
                             export_to_video,
                             generated_video,
                             output_video_path,
-                            fps=args.fps,
+                            fps=out_fps,
                         )
                     )
 

@@ -1,0 +1,179 @@
+{
+  "machine": {
+    "cpu": "x86_64",
+    "threads": 17,
+    "torch": "2.5.1+cu124",
+    "dtype": "fp32"
+  },
+  "seed": 42,
+  "runs": [
+    {
+      "config": "baseline",
+      "prompt": "A red fox running through fresh snow in a pine forest at sunrise",
+      "total_s": 51.78,
+      "stages_s": {
+        "first_frame": 19.69,
+        "vae_encode": 2.72,
+        "dit": 21.49,
+        "vae_decode": 7.03
+      },
+      "clip_score": 31.01
+    },
+    {
+      "config": "baseline",
+      "prompt": "Waves crashing on black volcanic rocks, slow motion, golden hour",
+      "total_s": 52.33,
+      "stages_s": {
+        "first_frame": 21.84,
+        "vae_encode": 1.78,
+        "dit": 20.92,
+        "vae_decode": 6.86
+      },
+      "clip_score": 33.45
+    },
+    {
+      "config": "baseline",
+      "prompt": "A busy night market street in an old city, lanterns glowing, people walking",
+      "total_s": 45.53,
+      "stages_s": {
+        "first_frame": 15.47,
+        "vae_encode": 1.65,
+        "dit": 21.69,
+        "vae_decode": 6.17
+      },
+      "clip_score": 30.88
+    },
+    {
+      "config": "tiny_vae",
+      "prompt": "A red fox running through fresh snow in a pine forest at sunrise",
+      "total_s": 44.88,
+      "stages_s": {
+        "first_frame": 13.56,
+        "vae_encode": 2.62,
+        "dit": 21.05,
+        "vae_decode": 7.04
+      },
+      "clip_score": 30.29,
+      "psnr_vs_baseline_db": 21.77
+    },
+    {
+      "config": "tiny_vae",
+      "prompt": "Waves crashing on black volcanic rocks, slow motion, golden hour",
+      "total_s": 42.59,
+      "stages_s": {
+        "first_frame": 11.46,
+        "vae_encode": 2.49,
+        "dit": 21.28,
+        "vae_decode": 6.61
+      },
+      "clip_score": 33.52,
+      "psnr_vs_baseline_db": 28.5
+    },
+    {
+      "config": "tiny_vae",
+      "prompt": "A busy night market street in an old city, lanterns glowing, people walking",
+      "total_s": 40.46,
+      "stages_s": {
+        "first_frame": 10.7,
+        "vae_encode": 1.72,
+        "dit": 21.7,
+        "vae_decode": 5.8
+      },
+      "clip_score": 30.32,
+      "psnr_vs_baseline_db": 19.57
+    },
+    {
+      "config": "tiny_vae+int8",
+      "prompt": "A red fox running through fresh snow in a pine forest at sunrise",
+      "total_s": 28.33,
+      "stages_s": {
+        "first_frame": 7.31,
+        "vae_encode": 1.44,
+        "dit": 12.39,
+        "vae_decode": 6.76
+      },
+      "clip_score": 6.41,
+      "psnr_vs_baseline_db": 5.54
+    },
+    {
+      "config": "tiny_vae+int8",
+      "prompt": "Waves crashing on black volcanic rocks, slow motion, golden hour",
+      "total_s": 29.92,
+      "stages_s": {
+        "first_frame": 9.26,
+        "vae_encode": 1.61,
+        "dit": 11.85,
+        "vae_decode": 6.72
+      },
+      "clip_score": 10.73,
+      "psnr_vs_baseline_db": 8.47
+    },
+    {
+      "config": "tiny_vae+int8",
+      "prompt": "A busy night market street in an old city, lanterns glowing, people walking",
+      "total_s": 27.27,
+      "stages_s": {
+        "first_frame": 7.33,
+        "vae_encode": 1.45,
+        "dit": 11.67,
+        "vae_decode": 6.39
+      },
+      "clip_score": 17.31,
+      "psnr_vs_baseline_db": 9.8
+    },
+    {
+      "config": "i2v_fast",
+      "prompt": "A red fox running through fresh snow in a pine forest at sunrise",
+      "total_s": 21.78,
+      "stages_s": {
+        "vae_encode": 1.77,
+        "dit": 12.61,
+        "vae_decode": 6.9
+      },
+      "clip_score": 31.28,
+      "psnr_vs_baseline_db": 14.44
+    },
+    {
+      "config": "i2v_fast",
+      "prompt": "Waves crashing on black volcanic rocks, slow motion, golden hour",
+      "total_s": 20.81,
+      "stages_s": {
+        "vae_encode": 1.73,
+        "dit": 12.41,
+        "vae_decode": 6.06
+      },
+      "clip_score": 32.34,
+      "psnr_vs_baseline_db": 19.17
+    },
+    {
+      "config": "i2v_fast",
+      "prompt": "A busy night market street in an old city, lanterns glowing, people walking",
+      "total_s": 21.04,
+      "stages_s": {
+        "vae_encode": 1.48,
+        "dit": 12.03,
+        "vae_decode": 6.92
+      },
+      "clip_score": 30.96,
+      "psnr_vs_baseline_db": 19.52
+    }
+  ],
+  "summary": {
+    "baseline": {
+      "mean_total_s": 49.88,
+      "mean_clip_score": 31.78
+    },
+    "tiny_vae": {
+      "mean_total_s": 42.64,
+      "mean_clip_score": 31.38
+    },
+    "tiny_vae+int8": {
+      "mean_total_s": 28.51,
+      "mean_clip_score": 11.48
+    },
+    "i2v_fast": {
+      "mean_total_s": 21.21,
+      "mean_clip_score": 31.53
+    }
+  }
+}

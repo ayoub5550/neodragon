@@ -1,0 +1,83 @@
+{
+  "date": "2026-10-06",
+  "machine": {
+    "cpu": "AMD EPYC (Zen 4), AVX-512 + VNNI, no AVX512_BF16/AMX",
+    "usable_threads": 17,
+    "nproc_reports": 1,
+    "ram_gb": 328,
+    "torch": "2.5.1",
+    "dtype": "fp32"
+  },
+  "dit_forward_last_unit_stage2": {
+    "what": "one PyramidMMDiT forward, hybrid mode, unit 6 stage 2 (largest call: 1600 latent positions incl. history)",
+    "threads_s": {
+      "1": 27.09,
+      "4": 8.755,
+      "8": 3.83,
+      "12": 2.719,
+      "17": 2.132
+    },
+    "speedup_17_vs_1": 12.7,
+    "note": "torch.get_num_threads() defaults to 1 in this sandbox because nproc reports 1; neodragon.runtime.configure_cpu_threads() uses sched_getaffinity"
+  },
+  "int8_dynamic": {
+    "all_linear": {
+      "last_call_s": 1.666,
+      "fp32_last_call_s": 2.196,
+      "sum_18_calls_s": 11.46,
+      "fp32_sum_18_calls_s": 21.9,
+      "rel_output_error": 0.164
+    },
+    "selective_keep_adaLN_io_fp32": {
+      "last_call_s": 1.225,
+      "fp32_last_call_s": "~2.1-2.2",
+      "rel_output_error": 0.0545,
+      "sum_18_calls_s": 12.25,
+      "fp32_sum_18_calls_s": 21.17,
+      "rel_output_error_per_call": [
+        0.058,
+        0.087,
+        0.07,
+        0.043,
+        0.047,
+        0.053,
+        0.039,
+        0.054,
+        0.054,
+        0.033,
+        0.041,
+        0.054,
+        0.031,
+        0.048,
+        0.053,
+        0.031,
+        0.043,
+        0.054
+      ]
+    },
+    "note": "rel_output_error = ||y_int8 - y_fp32|| / ||y_fp32|| on the predicted flow. Keeping norm1/norm1_context (adaLN), norm_out, proj_out, time_text_embed in fp32 cut the error 3x AND made it faster.",
+    "ssd1b_unet_int8": {
+      "status": "rejected",
+      "reason": "end-to-end CLIP score fell 31.4 -> 11.5; first frame no longer follows the prompt (see results/cpu_benchmark_rejected_unet_int8.json)"
+    }
+  },
+  "first_frame_vae_decode_1024x640": {
+    "sdxl_vae_s": 8.153,
+    "taesdxl_s": 1.154,
+    "psnr_db_at_512x320": 31.42
+  },
+  "ssd1b": {
+    "unet_step_s": 2.408,
+    "steps": 4,
+    "encode_prompt_s": 0.215,
+    "latent_total_s": 10.99
+  },
+  "block_noise": {
+    "original": "MultivariateNormal(...).sample() in a Python loop; raises ValueError (covariance not PositiveDefinite) on torch 2.5.1",
+    "new_s_for_1x16x1x400x640": 0.093
+  },
+  "torch_compile": {
+    "status": "not measured",
+    "reason": "inductor needs setuptools + a C++ toolchain in the venv; left for the next session (see docs/ROADMAP.md)"
+  }
+}
