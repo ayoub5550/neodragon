@@ -140,6 +140,11 @@ def main():
         if "int8" in config or config == "i2v_fast":
             pipe.quantize_int8()
         timer = StageTimer(pipe)
+        # "+ff2" / "+ff3": fewer SSD-1B LCM steps for the first frame (Neodragon-X phase 2)
+        ff_kwargs = {}
+        for n in (2, 3):
+            if f"ff{n}" in config:
+                ff_kwargs["first_frame_steps"] = n
 
         for pi, prompt in enumerate(prompts):
             image = first_frames.get(pi) if config.startswith("i2v") else None
@@ -153,6 +158,7 @@ def main():
                     prompt_modifier=MODIFIER,
                     image=image,
                     generator=make_generator(args.seed),
+                    **ff_kwargs,
                 )
             total = time.perf_counter() - t0
             if config == "baseline":

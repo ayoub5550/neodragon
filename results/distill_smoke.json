@@ -1,0 +1,26 @@
+{
+  "machine": "17-thread Zen 4 CPU, no GPU, fp32",
+  "teacher": {
+    "model": "Wan2.2-TI2V-5B (diffusers)",
+    "smoke_run": {"height": 320, "width": 512, "frames": 17, "steps": 4, "total_s": 141.9},
+    "real_run": {
+      "height": 480, "width": 768, "frames": 25, "steps_planned": 30,
+      "steps_completed": 23, "s_per_step": 42.4,
+      "status": "stopped by the owner at step 23/30 (distillation paused); no clip saved",
+      "estimate_full_run_min": 23
+    },
+    "estimate_480x768x49f_40steps_min": "~60 (estimate: ~2.2x tokens per step, 40 steps)"
+  },
+  "student_encoding": {"roundtrip_psnr_db": 25.99, "latent_shape": [16, 3, 40, 64], "prompt_embeds_shape": [128, 4096]},
+  "stage_a_train_smoke": {
+    "samples": "1 train + 1 val (same clip)",
+    "trainable_lora_params_M": 14.06, "lora_file_MB": 56.2, "optimizer_state_MB": 112.7,
+    "val_loss": {"step0_original": 0.10539, "step1": 0.10535, "step2": 0.10531, "step3_after_resume": 0.10528},
+    "train_loss_step2": 0.05976, "grad_norm_step2": 0.0037,
+    "resume_auto": "ok (step 2 -> 3)"
+  },
+  "lora_merge": {"linear_layers": 255, "changed": 142, "wrappers_left": 0, "max_abs_err_vs_manual_delta": 0.0,
+                 "metadata": {"base": "diffusion_transformer_320p_multistep_t2v", "rank": 32, "alpha": 32, "teacher": "Wan2.2-TI2V-5B"}},
+  "cli_lora_e2e": {"mode": "monolithic", "i2v": true, "wall_s": 365, "status": "ok"},
+  "verdict": "Pipeline works end to end on CPU. Real training needs a GPU (Kaggle notebook). Paused by the owner on 2026-10-06."
+}

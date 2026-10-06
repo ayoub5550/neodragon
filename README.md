@@ -77,15 +77,17 @@
 
 ## 🚀 Neodragon-X (this fork)
 
-> **Runs without a GPU.** CPU / CUDA / Apple MPS, image-to-video, seeds, RIFE 48 fps, INT8 — every change measured.
+> **Runs without a GPU.** CPU / CUDA / Apple MPS, image-to-video, seeds, RIFE 48 fps, INT8, 2-step first frame, Real-ESRGAN upscaling — every change measured.
+> Big step in progress: distilling Wan2.2 into it with LoRA (`--lora`) — trainer ready, free Kaggle notebook: [`notebooks/neodragon_x_distill_kaggle.ipynb`](notebooks/neodragon_x_distill_kaggle.ipynb) · plan: [`docs/DISTILLATION.md`](docs/DISTILLATION.md).
 > Full details: [`docs/NEODRAGON_X.md`](docs/NEODRAGON_X.md) · research survey: [`docs/RESEARCH.md`](docs/RESEARCH.md) · log: [`docs/DEVLOG.md`](docs/DEVLOG.md) · next steps: [`docs/ROADMAP.md`](docs/ROADMAP.md) · for AI agents: [`AGENTS.md`](AGENTS.md)
 
 | 17-core CPU, no GPU (49 frames, 512×320) | time / clip | CLIP-score |
 |---|---|---|
 | upstream pipeline | 50.5 s | 31.78 |
-| `--fast` (TAESDXL + selective INT8) | **29.8 s** | 31.38 |
+| `--fast` (TAESDXL + selective INT8 + 2-step first frame) | **23.2 s** | **32.28** |
 | `--image photo.jpg --fast` (image-to-video) | **18.1 s** | 31.53 |
-| `--interpolate 2` (RIFE, 49 → 97 frames) | +11.9 s | — |
+| `--interpolate 2` (RIFE, 49 → 97 frames, lossless fast path) | +5.05 s | — |
+| `--upscale 2 --upscale_model fast` (Real-ESRGAN → 1024×640) | +~15 s | sharper |
 
 ```bash
 pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cpu
@@ -97,7 +99,7 @@ No GPU at home? Free T4: [`notebooks/neodragon_x_free_gpu.ipynb`](notebooks/neod
 
 <div dir="rtl">
 
-**بالعربية:** هذه النسخة تشغّل Neodragon على أي حاسوب حتى بدون بطاقة رسوميات، وتولّد فيديو من نص في نحو 30 ثانية على معالج 17 نواة (بدل 50)، أو تحرّك صورتك في 18 ثانية، مع مضاعفة الإطارات لفيديو أنعم. التفاصيل والأرقام في <code>docs/NEODRAGON_X.md</code>.
+**بالعربية:** هذه النسخة تشغّل Neodragon على أي حاسوب حتى بدون بطاقة رسوميات، وتولّد فيديو من نص في نحو 23 ثانية على معالج 17 نواة (بدل 50)، أو تحرّك صورتك في 18 ثانية، مع مضاعفة الإطارات لفيديو أنعم وتكبير الدقة إلى 1024×640. التفاصيل والأرقام في <code>docs/NEODRAGON_X.md</code>.
 
 </div>
 

@@ -1,0 +1,93 @@
+{
+  "machine": {
+    "cpu": "x86_64",
+    "threads": 17,
+    "torch": "2.5.1+cu124",
+    "dtype": "fp32"
+  },
+  "seed": 42,
+  "runs": [
+    {
+      "config": "tiny_vae+int8",
+      "prompt": "A red fox running through fresh snow in a pine forest at sunrise",
+      "total_s": 31.54,
+      "stages_s": {
+        "first_frame": 9.57,
+        "vae_encode": 1.36,
+        "dit": 14.25,
+        "vae_decode": 5.97
+      },
+      "clip_score": 30.77
+    },
+    {
+      "config": "tiny_vae+int8",
+      "prompt": "Waves crashing on black volcanic rocks, slow motion, golden hour",
+      "total_s": 27.34,
+      "stages_s": {
+        "first_frame": 9.78,
+        "vae_encode": 1.33,
+        "dit": 11.61,
+        "vae_decode": 4.16
+      },
+      "clip_score": 32.86
+    },
+    {
+      "config": "tiny_vae+int8",
+      "prompt": "A busy night market street in an old city, lanterns glowing, people walking",
+      "total_s": 27.56,
+      "stages_s": {
+        "first_frame": 10.42,
+        "vae_encode": 1.38,
+        "dit": 11.47,
+        "vae_decode": 3.83
+      },
+      "clip_score": 30.5
+    },
+    {
+      "config": "tiny_vae+int8+ff2",
+      "prompt": "A red fox running through fresh snow in a pine forest at sunrise",
+      "total_s": 22.63,
+      "stages_s": {
+        "first_frame": 5.22,
+        "vae_encode": 1.32,
+        "dit": 11.21,
+        "vae_decode": 4.47
+      },
+      "clip_score": 31.62
+    },
+    {
+      "config": "tiny_vae+int8+ff2",
+      "prompt": "Waves crashing on black volcanic rocks, slow motion, golden hour",
+      "total_s": 24.53,
+      "stages_s": {
+        "first_frame": 6.68,
+        "vae_encode": 1.65,
+        "dit": 11.8,
+        "vae_decode": 3.85
+      },
+      "clip_score": 32.45
+    },
+    {
+      "config": "tiny_vae+int8+ff2",
+      "prompt": "A busy night market street in an old city, lanterns glowing, people walking",
+      "total_s": 22.43,
+      "stages_s": {
+        "first_frame": 5.22,
+        "vae_encode": 1.35,
+        "dit": 11.32,
+        "vae_decode": 4.14
+      },
+      "clip_score": 32.76
+    }
+  ],
+  "summary": {
+    "tiny_vae+int8": {
+      "mean_total_s": 28.81,
+      "mean_clip_score": 31.38
+    },
+    "tiny_vae+int8+ff2": {
+      "mean_total_s": 23.2,
+      "mean_clip_score": 32.28
+    }
+  }
+}

@@ -3,8 +3,9 @@
 Ordered by expected gain ÷ effort. Each item says how to measure it. Rules: see `AGENTS.md` §0
 (measure speed **and** quality, opt-in flags, log everything in `docs/DEVLOG.md`).
 
-Status on 2026-10-06: text-to-video 50.5 s → 29.8 s, image-to-video 18.1 s, both at the same
-CLIP-score, on a 17-core CPU (`results/cpu_benchmark.json`).
+Status on 2026-10-06 (end of session 2): text-to-video 50.5 s → **23.2 s** with a higher
+CLIP-score (32.28 vs 31.78), image-to-video 18.1 s, RIFE 2× +5.05 s, on a 17-core CPU
+(`results/cpu_benchmark_phase2.json`). Done items are marked ✅ and kept for the record.
 
 ## Next (high value, no training)
 
@@ -13,10 +14,12 @@ CLIP-score, on a 17-core CPU (`results/cpu_benchmark.json`).
    should cut the DiT's 12 s further. Hard part: the pyramid input length changes per stage, so
    export one IR per (stage, unit) shape (18 shapes) or use dynamic shapes. Measure: DiT seconds
    and CLIP-score with `benchmark_cpu.py`.
-2. **`torch.compile` (inductor, CPU)** on DiT and video-VAE decoder. Blocked in the first session
-   (venv had no setuptools / C++ toolchain). Install `setuptools` + `gcc`, try
-   `mode="max-autotune-no-cudagraphs"`; check it works together with dynamic INT8.
-3. **Speed up the SSD-1B first frame** (now ~10 s, the biggest remaining stage in T2V):
+2. ❌ **`torch.compile` (inductor, CPU)** — measured in session 2 and rejected: steady state 26.68 s vs
+   eager 26.17 s, and a 964 s first call (one recompile per latent unit, dynamo cache limit hit).
+   See `results/compile_eval.json`. Revisit only with static shapes (#1).
+3. ✅ **Speed up the SSD-1B first frame** — done in session 2: 2 steps [999, 499] at 1024×640,
+   10.4 s → 5.5 s, CLIP unchanged (`results/first_frame_steps.json`, part of `--fast`). Remaining
+   ideas, if needed:
    - fewer steps: LCM at 2–3 steps instead of 4 (measure CLIP-score and look at the frames);
    - generate at 768×480 instead of 1024×640 (`--first_frame_height/width` already exist);
    - INT8 of the UNet is **rejected** (CLIP 31.4 → 11.5); try *static* INT8 or INT8 only in the
@@ -27,7 +30,7 @@ CLIP-score, on a 17-core CPU (`results/cpu_benchmark.json`).
 
 ## Quality
 
-5. **Real-ESRGAN compact 2× upscaler** as an opt-in post-process (`--upscale 2`): 512×320 →
+5. ✅ (session 2, `results/upscale_eval.json`) **Real-ESRGAN compact 2× upscaler** as an opt-in post-process (`--upscale 2`): 512×320 →
    1024×640. Measure ms/frame on CPU; with RIFE this gives 97 frames at 1024×640.
 6. **Prompt enrichment**: rewrite short prompts into the cinematic style the model was trained on,
    with a small local LLM (Qwen2.5-0.5B/1.5B runs on CPU). Measure CLIP-score on 20 prompts.
@@ -45,5 +48,9 @@ CLIP-score, on a 17-core CPU (`results/cpu_benchmark.json`).
     or to ExecuTorch for Android CPUs.
 11. **Verify the GPU path** on a free Kaggle/Colab T4 with `notebooks/neodragon_x_free_gpu.ipynb`
     and record the timings in `results/gpu_t4.json`.
-12. **RIFE fast path**: zero-pad IFNet's 90/45-channel convs to 96/48 so oneDNN's correct kernels
+12. ✅ (session 2, 11.3 s → 5.05 s, lossless, `results/rife_fastpath.json`) **RIFE fast path**: zero-pad IFNet's 90/45-channel convs to 96/48 so oneDNN's correct kernels
     apply again (RIFE 2× 11.9 s → ~5 s); verify bit-for-bit closeness with `scripts/eval_rife.py`.
+13. **Distil Wan2.2 into Neodragon-X** — 🟡 in progress. Done: teacher data + encoding, `neodragon/lora.py`,
+    Stage A LoRA trainer (`distill/train_stage_a.py`, CPU smoke test: loss drops, resume works, merge exact),
+    `--lora` in the CLI, free Kaggle notebook. Next: run the notebook on Kaggle (no GPU here), compare
+    original vs LoRA by CLIP-score + eye, then write Stage B (`train_stage_b.py`: 1-1-1 hybrid student).

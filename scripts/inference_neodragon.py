@@ -143,13 +143,26 @@ def get_args():
     parser.add_argument("--int8", action="store_true",
                         help="CPU only: dynamic INT8 for the Linear layers of the DiT and text "
                         "encoder (adaLN/IO kept fp32). ~1.8x faster DiT, CLIP-score unchanged")
+    parser.add_argument("--lora", type=str, default=None,
+                        help="LoRA .safetensors from distill/train_stage_a.py, merged into the DiT "
+                        "before generation (trained on the multistep DiT: use with --mode monolithic)")
+    parser.add_argument("--lora_strength", type=float, default=1.0,
+                        help="Scale of the --lora delta (0 = off, 1 = as trained)")
     parser.add_argument("--fast", action="store_true",
-                        help="Shortcut: --tiny_first_frame_vae, plus --int8 on CPU")
+                        help="Shortcut: --tiny_first_frame_vae --first_frame_steps 2, plus --int8 on CPU")
+    parser.add_argument("--first_frame_steps", type=int, default=None, choices=[2, 3, 4],
+                        help="LCM steps for the SSD-1B first frame (upstream 4). 2 steps: 1.9x "
+                        "faster first frame, CLIP 33.4 vs 33.6 (results/first_frame_steps.json)")
     parser.add_argument("--interpolate", type=int, default=1, choices=[1, 2, 4],
                         help="RIFE frame interpolation factor: 2 turns 49 frames into 97")
     parser.add_argument("--slow_motion", action="store_true",
                         help="With --interpolate: keep the fps (longer, slow-motion clip) instead "
                         "of multiplying it (same length, smoother)")
+    parser.add_argument("--upscale", type=int, default=1, choices=[1, 2, 4],
+                        help="Real-ESRGAN compact super-resolution after generation/RIFE: "
+                        "2 -> 1024x640, 4 -> 2048x1280 (results/upscale_eval.json)")
+    parser.add_argument("--upscale_model", default="general", choices=["general", "fast"],
+                        help="general = realesr-general-x4v3 (photos); fast = realesr-animevideov3")
     parser.add_argument("--first_frame_height", type=int, default=None,
                         help="SSD-1B first-frame height (default 640)")
     parser.add_argument("--first_frame_width", type=int, default=None,
@@ -264,6 +277,7 @@ def main(args: argparse.Namespace) -> None:
 
     if args.fast:
         args.tiny_first_frame_vae = True
+        args.first_frame_steps = args.first_frame_steps or 2
         args.int8 = args.int8 or device.type == "cpu"
     if args.int8 and device.type != "cpu":
         print("[neodragon-x] --int8 is a CPU path; ignored on", device)
@@ -276,6 +290,14 @@ def main(args: argparse.Namespace) -> None:
         mode=args.mode,
         cache_dir=args.local_cache_folder,
     ).to(device)
+    if args.lora:
+        from neodragon.lora import load_lora
+
+        if args.mode != "monolithic":
+            print("[neodragon-x] warning: --lora was trained on the multistep DiT; "
+                  "in hybrid mode it is applied to the 1-1-1 DiT, which is untested")
+        load_lora(neodragon_pipeline.dit, args.lora, merge=True, strength=args.lora_strength)
+        print(f"[neodragon-x] merged LoRA {args.lora} (strength {args.lora_strength})")
     if args.tiny_first_frame_vae:
         neodragon_pipeline.enable_tiny_first_frame_vae(cache_dir=args.local_cache_folder)
     if args.int8:
@@ -287,6 +309,11 @@ def main(args: argparse.Namespace) -> None:
         from neodragon.postprocess import RIFEInterpolator
 
         interpolator = RIFEInterpolator(device=device, cache_dir=args.local_cache_folder)
+    upscaler = None
+    if args.upscale > 1:
+        from neodragon.postprocess import VideoUpscaler
+
+        upscaler = VideoUpscaler(args.upscale_model, device=device, cache_dir=args.local_cache_folder)
     out_fps = args.fps if (args.interpolate == 1 or args.slow_motion) else args.fps * args.interpolate
 
     init_image = None
@@ -355,6 +382,11 @@ def main(args: argparse.Namespace) -> None:
                             None if args.seed is None else args.seed + sample_id
                         ),
                         **(
+                            {"first_frame_steps": args.first_frame_steps}
+                            if args.first_frame_steps
+                            else {}
+                        ),
+                        **(
                             {
                                 "first_frame_height": args.first_frame_height,
                                 "first_frame_width": args.first_frame_width,
@@ -384,6 +416,8 @@ def main(args: argparse.Namespace) -> None:
 
                     if interpolator is not None:
                         generated_video = interpolator(generated_video, factor=args.interpolate)
+                    if upscaler is not None:
+                        generated_video = upscaler(generated_video, factor=args.upscale)
 
                     # If video passes safety check submit it for exporting
                     task_queue.append(

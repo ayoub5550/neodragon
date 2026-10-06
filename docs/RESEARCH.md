@@ -80,6 +80,18 @@ Verdicts: **✅ implemented** in this fork (measured), **🟡 candidate** (appli
 - **On-device Sora**, **MOVD** (WACV 2026, iPhone 15 Pro), **CineMobile** (camera-motion I2V).
 These need training or are different models; useful as quality references, not drop-in changes.
 
+### 3.5 Distilling a big open model (Wan2.2) — session 2
+
+- Wan2.2 (Apache-2.0) is the strongest open video model that fits on this box: TI2V-5B (34 GB of
+  files) and A14B MoE (126 GB). Both load in 328 GB of RAM, but without a GPU the 5B model needs
+  ~19 s per denoising step at 320×512×17 frames, so a 30–40-step clip takes tens of minutes to
+  hours (`results/distill_smoke.json`).
+- Its VAE (48 ch, 4×16×16) differs from Neodragon's (16 ch, 8×8×8), so distillation has to go
+  through pixels (teacher videos → Neodragon VAE). The hybrid DiT is already DMD-distilled to one
+  step per stage, so the fine-tune must target the multistep DiT and then be re-distilled (DMD2) or
+  use an adversarial objective (LADD / APT). Full plan, files and cost: `docs/DISTILLATION.md`.
+- Prior art at large budget: S2DiT (Wan2.2-14B → mobile), MobileWan (compressing Wan2.2-5B).
+
 ## 4. Sources
 
 - Neodragon: https://arxiv.org/abs/2511.06055 · https://qualcomm-ai-research.github.io/neodragon · https://github.com/Qualcomm-AI-research/neodragon · https://huggingface.co/Qualcomm-AI-Research/Neodragon
@@ -89,4 +101,5 @@ These need training or are different models; useful as quality references, not d
 - MobileWan: https://arxiv.org/abs/2607.06173 · S2DiT: https://arxiv.org/abs/2601.12719 · CineMobile: https://arxiv.org/abs/2607.03803 · MobileVD: ICCV 2025 (openaccess.thecvf.com)
 - TAESDXL: https://huggingface.co/madebyollin/taesdxl · RIFE: https://github.com/hzwer/ECCV2022-RIFE · https://huggingface.co/TensorForger/RIFE-safetensors
 - PyTorch INT8 on x86: https://pytorch.org/blog/int8-quantization/ · torchao in diffusers: https://huggingface.co/docs/diffusers/quantization/torchao
+- Wan2.2: https://github.com/Wan-Video/Wan2.2 · https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B-Diffusers · DMD2: https://arxiv.org/abs/2405.14867 · LADD: https://arxiv.org/abs/2403.12015 · APT: https://arxiv.org/abs/2501.08316 · Real-ESRGAN: https://github.com/xinntao/Real-ESRGAN
 - my-gpu (CPU techniques, measured on the same machine class): https://github.com/ayoub5550/my-gpu (docs/RESEARCH.md, docs/ROADMAP.md)

@@ -42,6 +42,15 @@ DEFAULT_NEGATIVE_PROMPT = (
 # Reference: Eqn 15 of the paper https://arxiv.org/pdf/2410.05954                                        #
 # ------------------------------------------------------------------------------------------------------ #
 
+# Neodragon-X: LCM timesteps for the SSD-1B first frame, by step count. 4 is upstream.
+# 2 steps uses points of the distilled grid; 3 steps is off-grid (diffusers warns) but measured fine.
+FIRST_FRAME_TIMESTEPS = {
+    4: [999, 749, 499, 249],
+    3: [999, 666, 333],
+    2: [999, 499],
+}
+
+
 
 def _upsample_pyramidal_latent(
     latents: torch.FloatTensor,
@@ -417,6 +426,7 @@ def generate_hybrid(
     generator: Optional[torch.Generator] = None,
     first_frame_height: Optional[int] = None,
     first_frame_width: Optional[int] = None,
+    first_frame_steps: Optional[int] = None,
 ):
     prompt_modifier = (
         DEFAULT_PROMPT_MODIFIER if prompt_modifier is None else prompt_modifier
@@ -433,6 +443,11 @@ def generate_hybrid(
         ff_kwargs = {}
         if first_frame_height is not None and first_frame_width is not None:
             ff_kwargs.update(height=first_frame_height, width=first_frame_width)
+        if first_frame_steps is not None:
+            # Neodragon-X: fewer LCM steps for SSD-1B (2 = points of the distilled
+            # grid; see FIRST_FRAME_TIMESTEPS and results/first_frame_steps.json).
+            ts = FIRST_FRAME_TIMESTEPS[int(first_frame_steps)]
+            ff_kwargs.update(timesteps=ts, num_inference_steps=len(ts))
         with Timer("First Frame Generation", profile):
             first_frame = first_frame_gen_pipeline(
                 prompt=prompt + prompt_modifier,
