@@ -49,6 +49,7 @@ def _upsample_pyramidal_latent(
     gamma: float,
     device: torch.device,
     dtype: torch.dtype,
+    generator: Optional[torch.Generator] = None,
 ) -> torch.FloatTensor:
     # Upsample the latents by a factor of 2
     t = latents.shape[2]
@@ -62,7 +63,7 @@ def _upsample_pyramidal_latent(
 
     # add the corrective noise
     bs, ch, temp, height, width = latents.shape
-    noise = _sample_block_noise(gamma, bs, ch, temp, height, width)
+    noise = _sample_block_noise(gamma, bs, ch, temp, height, width, generator=generator)
     noise = noise.to(device=device, dtype=dtype)
     latents = alpha * latents + beta * noise  # To fix the block artifact
 
@@ -94,13 +95,34 @@ def _prepare_latent_noise(
 
 
 def _sample_block_noise(
-    gamma: float, bs: int, ch: int, temp: int, height: int, width: int
+    gamma: float,
+    bs: int,
+    ch: int,
+    temp: int,
+    height: int,
+    width: int,
+    generator: Optional[torch.Generator] = None,
 ) -> torch.FloatTensor:
-    dist = torch.distributions.multivariate_normal.MultivariateNormal(
-        torch.zeros(4), torch.eye(4) * (1 + gamma) - torch.ones(4, 4) * gamma
-    )
+    # Neodragon-X: exact closed-form sampler for N(0, (1 + gamma) I - gamma J) per 2x2 block.
+    #
+    # The original code built a MultivariateNormal and called `.sample()` once per block in a
+    # Python loop. That had two problems:
+    #   1. For gamma = 1/3 (the scheduler default) the covariance is *singular* (eigenvalue
+    #      1 + gamma - 4 gamma = 0 along the all-ones direction). Its Cholesky only succeeded
+    #      by float rounding luck on old PyTorch; on PyTorch >= 2.4 the constructor raises
+    #      "covariance_matrix ... to satisfy the constraint PositiveDefinite()".
+    #   2. ~10^4-10^5 Python-level `.sample()` calls per upsampling step.
+    #
+    # With z ~ N(0, I_4), m = mean(z):  x = a z + b m 1  has  Cov(x) = a^2 I + (a b / 2 + b^2 / 4) J.
+    # Choosing a = sqrt(1 + gamma), b = -a + sqrt(1 - 3 gamma) gives exactly (1 + gamma) I - gamma J
+    # (valid for gamma <= 1/3, i.e. whenever the covariance is PSD). One vectorised op, no Cholesky.
+    if gamma > 1.0 / 3.0 + 1e-6:
+        raise ValueError(f"block-noise covariance is not PSD for gamma={gamma} (> 1/3)")
+    a = math.sqrt(1.0 + gamma)
+    b = -a + math.sqrt(max(0.0, 1.0 - 3.0 * gamma))
     block_number = bs * ch * temp * (height // 2) * (width // 2)
-    noise = torch.stack([dist.sample() for _ in range(block_number)])
+    z = torch.randn(block_number, 4, generator=generator)
+    noise = a * z + b * z.mean(dim=1, keepdim=True)
     noise = rearrange(
         noise,
         "(b c t h w) (p q) -> b c t (h p) (w q)",
@@ -271,6 +293,7 @@ def _generate_one_unit(
     video_guidance_scale: float = 5.0,  # for rest of the frames
     profile: bool = False,
     show_denoising: bool = False,
+    generator: Optional[torch.Generator] = None,
 ) -> Union[torch.FloatTensor, List[torch.FloatTensor]]:
     intermed_latents = []  # to store all intermediate latents
     is_first_frame = all(len(cond) == 0 for cond in past_conditions)
@@ -292,6 +315,7 @@ def _generate_one_unit(
                     gamma=scheduler.config.gamma,
                     device=device,
                     dtype=dtype,
+                    generator=generator,
                 )
 
         with Timer(
@@ -389,6 +413,10 @@ def generate_hybrid(
     profile: bool = False,
     device: torch.device = torch.device("cuda"),
     dtype: torch.dtype = torch.bfloat16,
+    image: Optional[Image.Image] = None,
+    generator: Optional[torch.Generator] = None,
+    first_frame_height: Optional[int] = None,
+    first_frame_width: Optional[int] = None,
 ):
     prompt_modifier = (
         DEFAULT_PROMPT_MODIFIER if prompt_modifier is None else prompt_modifier
@@ -397,11 +425,21 @@ def generate_hybrid(
         DEFAULT_NEGATIVE_PROMPT if negative_prompt is None else negative_prompt
     )
 
-    with Timer("First Frame Generation", profile):
-        first_frame = first_frame_gen_pipeline(
-            prompt=prompt + prompt_modifier,
-            num_images_per_prompt=1,
-        ).images[0]
+    if image is not None:
+        # Neodragon-X image-to-video: the user's picture *is* the first frame, so the SSD-1B
+        # first-frame generator (about 40% of the CPU run time) is skipped entirely.
+        first_frame = _center_crop_to_aspect(image.convert("RGB"), width / height)
+    else:
+        ff_kwargs = {}
+        if first_frame_height is not None and first_frame_width is not None:
+            ff_kwargs.update(height=first_frame_height, width=first_frame_width)
+        with Timer("First Frame Generation", profile):
+            first_frame = first_frame_gen_pipeline(
+                prompt=prompt + prompt_modifier,
+                num_images_per_prompt=1,
+                generator=generator,
+                **ff_kwargs,
+            ).images[0]
 
     return generate(
         text_encoder_bundle=text_encoder_bundle,
@@ -427,7 +465,22 @@ def generate_hybrid(
         profile=profile,
         device=device,
         dtype=dtype,
+        generator=generator,
     )
+
+
+def _center_crop_to_aspect(image: Image.Image, aspect: float) -> Image.Image:
+    """Crop (not squash) a user image to the video aspect ratio before resizing."""
+    w, h = image.size
+    if abs(w / h - aspect) < 1e-3:
+        return image
+    if w / h > aspect:  # too wide
+        new_w = int(round(h * aspect))
+        left = (w - new_w) // 2
+        return image.crop((left, 0, left + new_w, h))
+    new_h = int(round(w / aspect))
+    top = (h - new_h) // 2
+    return image.crop((0, top, w, top + new_h))
 
 
 @torch.no_grad()
@@ -455,6 +508,7 @@ def generate(
     profile: bool = False,
     device: torch.device = torch.device("cuda"),
     dtype: torch.dtype = torch.bfloat16,
+    generator: Optional[torch.Generator] = None,
 ):
     prompt_modifier = (
         DEFAULT_PROMPT_MODIFIER if prompt_modifier is None else prompt_modifier
@@ -515,6 +569,7 @@ def generate(
             width // vae.config.spatial_downsample_scale,
             prompt_embeds.dtype,
             device,
+            generator=generator,
         )
 
         # We start with the lowest resolution latent_noise
@@ -528,7 +583,7 @@ def generate(
             image = _pil_to_numpy(image)
             image = torch.from_numpy(image).to(device=device, dtype=dtype)
             image = rearrange(image, "(b t) h w c -> b c t h w", b=1, t=1)
-            image_latent = vae.encode(image).latent_dist.sample()
+            image_latent = vae.encode(image).latent_dist.sample(generator=generator)
             image_latent = rearrange(image_latent, "b c t h w -> b c t h w")
             # NOTE: Don't forget :) to scale and shift the latent!
             image_latent = (image_latent - VAE_SHIFT_FACTOR) * VAE_SCALE_FACTOR
@@ -572,6 +627,7 @@ def generate(
                     do_classifier_free_guidance=do_classifier_free_guidance,
                     guidance_scale=guidance_scale,
                     video_guidance_scale=video_guidance_scale,
+                    generator=generator,
                 )
                 generated_latents_list.append(intermed_latents)
         generated_latents = torch.cat(generated_latents_list, dim=2)

@@ -1,0 +1,15 @@
+{
+  "date": "2026-10-06",
+  "machine": "AMD Zen 4, 17 threads, fp32, no GPU",
+  "runs": [
+    {"cmd": "scripts/inference_neodragon.py --prompt 'A red fox running through fresh snow in a pine forest at sunrise' --seed 42 --fast --interpolate 2 --num_frames 97 --disable_safety_checker",
+     "wall_s_including_model_load": 93.4, "frames_out": 193, "fps": 48, "black_frames": 0,
+     "observation": "97-frame (4 s) generation works; subject stays coherent, but colours over-saturate and the fox drifts out of frame in the second half (model distilled on 49 frames)",
+     "strip": "results/shots/e2e_t2v_97f_rife2x.jpg"},
+    {"cmd": "scripts/inference_neodragon.py --prompt 'Waves crashing on black volcanic rocks, slow motion, golden hour' --image waves.png --seed 7 --fast --disable_safety_checker",
+     "wall_s_including_model_load": 45.8, "frames_out": 49, "fps": 24, "black_frames": 0,
+     "observation": "image-to-video keeps the input picture as frame 0 and animates the wave",
+     "strip": "results/shots/e2e_i2v_fast.jpg"}
+  ],
+  "note": "Wall time includes ~20-25 s of model loading; per-clip generation times are in results/cpu_benchmark.json"
+}

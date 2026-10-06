@@ -75,6 +75,32 @@
 }
 ```
 
+## 🚀 Neodragon-X (this fork)
+
+> **Runs without a GPU.** CPU / CUDA / Apple MPS, image-to-video, seeds, RIFE 48 fps, INT8 — every change measured.
+> Full details: [`docs/NEODRAGON_X.md`](docs/NEODRAGON_X.md) · research survey: [`docs/RESEARCH.md`](docs/RESEARCH.md) · log: [`docs/DEVLOG.md`](docs/DEVLOG.md) · next steps: [`docs/ROADMAP.md`](docs/ROADMAP.md) · for AI agents: [`AGENTS.md`](AGENTS.md)
+
+| 17-core CPU, no GPU (49 frames, 512×320) | time / clip | CLIP-score |
+|---|---|---|
+| upstream pipeline | 50.5 s | 31.78 |
+| `--fast` (TAESDXL + selective INT8) | **29.8 s** | 31.38 |
+| `--image photo.jpg --fast` (image-to-video) | **18.1 s** | 31.53 |
+| `--interpolate 2` (RIFE, 49 → 97 frames) | +11.9 s | — |
+
+```bash
+pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements-x.txt
+python scripts/inference_neodragon.py --prompt "A red fox running in snow" --seed 42 --fast --interpolate 2 --disable_safety_checker
+python scripts/inference_neodragon.py --prompt "waves crashing on rocks" --image my_photo.jpg --fast   # animate your picture
+```
+No GPU at home? Free T4: [`notebooks/neodragon_x_free_gpu.ipynb`](notebooks/neodragon_x_free_gpu.ipynb) (Kaggle / Colab).
+
+<div dir="rtl">
+
+**بالعربية:** هذه النسخة تشغّل Neodragon على أي حاسوب حتى بدون بطاقة رسوميات، وتولّد فيديو من نص في نحو 30 ثانية على معالج 17 نواة (بدل 50)، أو تحرّك صورتك في 18 ثانية، مع مضاعفة الإطارات لفيديو أنعم. التفاصيل والأرقام في <code>docs/NEODRAGON_X.md</code>.
+
+</div>
+
 ## Overview
 **Neodragon** is an efficient text‑to‑video generation system that produces short, high‑fidelity videos directly from text prompts, prioritising practical, low‑latency inference and compact deployment over large‑scale offline synthesis.
 

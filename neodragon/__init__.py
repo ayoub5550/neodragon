@@ -14,8 +14,11 @@ from .context_adapter import ContextAdapter
 from .first_frame_gen import SSD1B_FirstFrameGeneratorPipeline
 from .pyramid_mmdit import PyramidMMDiT
 from .pyramid_scheduler import PyramidFlowMatchEulerDiscreteScheduler
+from .runtime import quantize_linear_int8
 from .text_encoder_bundle import TextEncoderBundle
 from .utils.generation_utils import generate, generate_hybrid
+
+TINY_FIRST_FRAME_VAE_ID = "madebyollin/taesdxl"
 
 MULTISTEP_CONTEXT_ADAPTER_ID = "context_adapter_multistep_t2v"
 CONTEXT_ADAPTER_ID = "context_adapter"
@@ -144,6 +147,49 @@ class NeodragonPipeline(DiffusionPipeline):
             mode=mode,
         )
 
+    # ----------------------------------------------------------------------------------------- #
+    # Neodragon-X speed options (all opt-in; defaults reproduce the upstream pipeline)           #
+    # ----------------------------------------------------------------------------------------- #
+    def enable_tiny_first_frame_vae(self, cache_dir: Optional[str] = None) -> "NeodragonPipeline":
+        """Decode the SSD-1B first frame with TAESDXL instead of the full SDXL VAE.
+
+        Measured on 17 Zen-4 cores: 8.15 s -> 1.15 s for the 1024x640 decode; 31.4 dB PSNR
+        against the full VAE after the frame is resized to the 512x320 video resolution.
+        """
+        from diffusers import AutoencoderTiny
+
+        if self.first_frame_gen_pipeline is None:
+            return self
+        ff = self.first_frame_gen_pipeline
+        tiny = AutoencoderTiny.from_pretrained(
+            TINY_FIRST_FRAME_VAE_ID, torch_dtype=ff.unet.dtype, cache_dir=cache_dir
+        ).to(ff.unet.device)
+        ff.register_modules(vae=tiny)
+        return self
+
+    def quantize_int8(self, components=("dit", "text")) -> "NeodragonPipeline":
+        """Dynamic INT8 for the Linear layers (CPU only; uses AVX-512 VNNI where present).
+
+        "first_frame" (SSD-1B UNet) is accepted but NOT default: in our benchmark it
+        destroyed prompt adherence (CLIP 31.4 -> 11.5, first frame unrelated to the
+        prompt). Kept only for experiments.
+
+        Sensitive layers (adaLN modulation, in/out projections) stay fp32. See
+        docs/NEODRAGON_X.md for measured speed and error.
+        """
+        if self.device.type != "cpu":
+            raise RuntimeError("INT8 dynamic quantisation is a CPU path; keep bf16/fp16 on GPU")
+        if "dit" in components:
+            self.register_modules(dit=quantize_linear_int8(self.dit))
+        if "text" in components:
+            self.register_modules(
+                text_encoder_bundle=quantize_linear_int8(self.text_encoder_bundle)
+            )
+        if "first_frame" in components and self.first_frame_gen_pipeline is not None:
+            ff = self.first_frame_gen_pipeline
+            ff.register_modules(unet=quantize_linear_int8(ff.unet, keep_fp32=("time_emb", "add_embedding", "conv")))
+        return self
+
     def __call__(
         self,
         prompt: str,
@@ -151,6 +197,7 @@ class NeodragonPipeline(DiffusionPipeline):
         prompt_modifier: Optional[str] = None,
         negative_prompt: Optional[str] = None,
         profile: bool = False,
+        generator: Optional[torch.Generator] = None,
         **kwargs: Any,
     ) -> Union[torch.FloatTensor, List[Image]]:
         # construct the generation configuration based on the selected mode
@@ -176,6 +223,7 @@ class NeodragonPipeline(DiffusionPipeline):
                 prompt_modifier=prompt_modifier,
                 negative_prompt=negative_prompt,
                 profile=profile,
+                generator=generator,
                 **gen_conf,
             )
         else:
@@ -189,10 +237,12 @@ class NeodragonPipeline(DiffusionPipeline):
                 frames_per_unit=self.config.frames_per_unit,
                 num_stages=len(self.config.stages),
                 prompt=prompt,
+                image=image,
                 device=self.device,
                 dtype=self.dtype,
                 prompt_modifier=prompt_modifier,
                 negative_prompt=negative_prompt,
                 profile=profile,
+                generator=generator,
                 **gen_conf,
             )

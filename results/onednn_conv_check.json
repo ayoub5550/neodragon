@@ -1,0 +1,134 @@
+{
+  "torch": "2.5.1+cu124",
+  "machine": "x86_64",
+  "onednn": true,
+  "rows": [
+    {
+      "in_ch": 3,
+      "out_ch": 64,
+      "stride": 1,
+      "max_abs_err": 6e-07,
+      "ok": true
+    },
+    {
+      "in_ch": 3,
+      "out_ch": 64,
+      "stride": 2,
+      "max_abs_err": 6e-07,
+      "ok": true
+    },
+    {
+      "in_ch": 4,
+      "out_ch": 64,
+      "stride": 1,
+      "max_abs_err": 8e-07,
+      "ok": true
+    },
+    {
+      "in_ch": 4,
+      "out_ch": 64,
+      "stride": 2,
+      "max_abs_err": 6e-07,
+      "ok": true
+    },
+    {
+      "in_ch": 16,
+      "out_ch": 64,
+      "stride": 1,
+      "max_abs_err": 1.3e-06,
+      "ok": true
+    },
+    {
+      "in_ch": 16,
+      "out_ch": 64,
+      "stride": 2,
+      "max_abs_err": 1.4e-06,
+      "ok": true
+    },
+    {
+      "in_ch": 45,
+      "out_ch": 90,
+      "stride": 1,
+      "max_abs_err": 0.6757269,
+      "ok": false
+    },
+    {
+      "in_ch": 45,
+      "out_ch": 90,
+      "stride": 2,
+      "max_abs_err": 0.6352327,
+      "ok": false
+    },
+    {
+      "in_ch": 48,
+      "out_ch": 64,
+      "stride": 1,
+      "max_abs_err": 1e-06,
+      "ok": true
+    },
+    {
+      "in_ch": 48,
+      "out_ch": 64,
+      "stride": 2,
+      "max_abs_err": 1e-06,
+      "ok": true
+    },
+    {
+      "in_ch": 64,
+      "out_ch": 64,
+      "stride": 1,
+      "max_abs_err": 1.1e-06,
+      "ok": true
+    },
+    {
+      "in_ch": 64,
+      "out_ch": 64,
+      "stride": 2,
+      "max_abs_err": 9e-07,
+      "ok": true
+    },
+    {
+      "in_ch": 90,
+      "out_ch": 64,
+      "stride": 1,
+      "max_abs_err": 0.6492774,
+      "ok": false
+    },
+    {
+      "in_ch": 90,
+      "out_ch": 64,
+      "stride": 2,
+      "max_abs_err": 0.5341836,
+      "ok": false
+    },
+    {
+      "in_ch": 96,
+      "out_ch": 64,
+      "stride": 1,
+      "max_abs_err": 1.1e-06,
+      "ok": true
+    },
+    {
+      "in_ch": 96,
+      "out_ch": 64,
+      "stride": 2,
+      "max_abs_err": 7e-07,
+      "ok": true
+    },
+    {
+      "in_ch": 128,
+      "out_ch": 64,
+      "stride": 1,
+      "max_abs_err": 9e-07,
+      "ok": true
+    },
+    {
+      "in_ch": 128,
+      "out_ch": 64,
+      "stride": 2,
+      "max_abs_err": 8e-07,
+      "ok": true
+    }
+  ],
+  "all_ok": false
+}
